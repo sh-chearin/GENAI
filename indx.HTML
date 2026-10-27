@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>한 눈에 개인 일정 관리</title>
+<style>
+  :root {
+    --sky: #e7f5ff;
+    --blue: #78bfe9;
+    --blue-dark: #2879a8;
+    --ink: #222;
+    --line: #111;
+    --muted: #687782;
+    --white: #fff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--sky);
+    color: var(--ink);
+    font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  }
+  button, input { font: inherit; }
+  button { cursor: pointer; }
+  .app { width: min(1200px, calc(100% - 40px)); margin: 34px auto; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 22px; }
+  h1 { font-size: clamp(23px, 3vw, 32px); margin: 0; letter-spacing: -1.2px; }
+  .today-label { color: #526773; font-size: 14px; margin-top: 7px; }
+  .layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(240px, 1fr); gap: 22px; align-items: start; }
+  .panel { background: var(--white); border-radius: 8px; }
+  .list-panel { border: 2px solid var(--line); min-height: 570px; padding: 22px; }
+  .calendar-panel { padding: 18px; box-shadow: 0 2px 8px #0000000c; }
+  .panel-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; }
+  h2 { font-size: 20px; margin: 0; }
+  .heading-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .btn { border: 1px solid #222; border-radius: 5px; padding: 9px 13px; background: white; color: #222; }
+  .btn-primary { background: var(--blue); border-color: var(--blue-dark); font-weight: 700; }
+  .btn:hover { filter: brightness(.97); }
+  .btn:focus-visible, input:focus-visible { outline: 3px solid #2879a8; outline-offset: 2px; }
+  .date-caption { font-size: 14px; color: var(--muted); margin: -8px 0 15px; }
+  .schedule-form { display: grid; grid-template-columns: minmax(0, 1fr) 145px auto; gap: 9px; padding: 14px; background: #f7fbfd; border: 1px solid #c7dce8; border-radius: 6px; margin-bottom: 18px; }
+  .schedule-form[hidden] { display: none; }
+  input { min-width: 0; border: 1px solid #b7c4cb; border-radius: 5px; padding: 10px; background: #fff; color: var(--ink); }
+  .schedule-list { display: flex; flex-direction: column; gap: 9px; }
+  .schedule-item { display: grid; grid-template-columns: 1fr auto 24px; align-items: center; gap: 14px; padding: 14px 12px; border: 1px solid #d9e0e4; border-radius: 5px; background: #fff; }
+  .schedule-title { font-weight: 600; overflow-wrap: anywhere; }
+  .schedule-time { font-size: 14px; color: #46545d; white-space: nowrap; }
+  .schedule-item.completed .schedule-title, .schedule-item.completed .schedule-time { text-decoration: line-through; color: #858585; }
+  .check-box { width: 20px; height: 20px; margin: 0; accent-color: #2879a8; cursor: pointer; }
+  .empty-state { text-align: center; padding: 65px 15px; color: #71808a; line-height: 1.8; }
+  .summary { display: none; margin-top: 16px; padding: 15px; border-top: 2px solid #222; background: #f7fbfd; }
+  .summary.visible { display: flex; flex-wrap: wrap; gap: 18px; }
+  .summary strong { color: #176b9b; }
+  .calendar-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 15px; }
+  .month-title { font-size: 18px; font-weight: 700; text-align: center; }
+  .month-nav { border: 1px solid #d5dfe4; border-radius: 4px; background: white; padding: 5px 9px; }
+  .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); text-align: center; gap: 3px; }
+  .weekday { font-size: 11px; color: #687782; padding: 7px 0; }
+  .day { position: relative; min-height: 34px; border: 0; border-radius: 4px; background: white; padding: 5px 0; font-size: 12px; color: #252525; }
+  .day:hover { background: #edf7fc; }
+  .day.other-month { color: #b9c0c4; }
+  .day.selected { outline: 2px solid var(--blue-dark); outline-offset: -2px; background: #e7f5ff; font-weight: 700; }
+  .day.today::after { content: ""; width: 4px; height: 4px; background: #2879a8; border-radius: 50%; position: absolute; bottom: 2px; left: calc(50% - 2px); }
+  .day.has-events { font-weight: 700; }
+  .day.has-events::before { content: ""; width: 4px; height: 4px; background: #f09a48; border-radius: 50%; position: absolute; top: 2px; left: calc(50% - 2px); }
+  .calendar-legend { margin-top: 14px; color: #687782; font-size: 12px; line-height: 1.6; }
+  .notice { min-height: 22px; margin: 0 0 12px; font-size: 13px; color: #b42318; }
+  .notice:empty { display: none; }
+  .footer-note { color: #60717b; font-size: 12px; margin-top: 14px; line-height: 1.6; }
+  @media (max-width: 760px) {
+    .app { width: min(100% - 24px, 600px); margin: 20px auto; }
+    .layout { grid-template-columns: 1fr; }
+    .calendar-panel { grid-row: 1; }
+    .list-panel { grid-row: 2; padding: 16px; min-height: 400px; }
+    .calendar-grid { gap: 5px; }
+    .day { min-height: 39px; font-size: 13px; }
+    .schedule-form { grid-template-columns: 1fr; }
+    .schedule-item { grid-template-columns: minmax(0, 1fr) auto 24px; gap: 8px; }
+    .panel-heading { align-items: flex-start; flex-direction: column; }
+    .topbar { align-items: flex-start; flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="topbar">
+    <div>
+      <h1>한 눈에 개인 일정 관리</h1>
+      <div class="today-label" id="todayLabel"></div>
+    </div>
+    <button class="btn btn-primary" id="openFormBtn" type="button">＋ 일정 추가</button>
+  </header>
+
+  <div class="layout">
+    <section class="panel list-panel" aria-labelledby="listHeading">
+      <div class="panel-heading">
+        <h2 id="listHeading">일정 체크리스트</h2>
+        <div class="heading-actions">
+          <button class="btn" id="summaryBtn" type="button" aria-pressed="false">현황 보기</button>
+          <button class="btn" id="allMonthBtn" type="button">이번 달 전체</button>
+        </div>
+      </div>
+      <div class="date-caption" id="selectedDateCaption"></div>
+      <p class="notice" id="notice" role="status" aria-live="polite"></p>
+
+      <form class="schedule-form" id="scheduleForm" hidden>
+        <input id="scheduleName" type="text" maxlength="100" placeholder="일정명 입력" aria-label="일정명" />
+        <input id="scheduleTime" type="time" aria-label="일정 시간" />
+        <button class="btn btn-primary" type="submit">추가하기</button>
+      </form>
+
+      <div class="schedule-list" id="scheduleList"></div>
+      <div class="summary" id="summary" aria-live="polite"></div>
+      <div class="footer-note">일정은 선택한 날짜에 저장됩니다. 체크해도 일정 데이터는 삭제되지 않습니다.</div>
+    </section>
+
+    <aside class="panel calendar-panel" aria-label="미니 달력">
+      <div class="calendar-top">
+        <button class="month-nav" id="prevMonth" type="button" aria-label="이전 달">‹</button>
+        <div class="month-title" id="monthTitle"></div>
+        <button class="month-nav" id="nextMonth" type="button" aria-label="다음 달">›</button>
+      </div>
+      <div class="calendar-grid" id="calendarGrid"></div>
+      <div class="calendar-legend">날짜를 선택하면 해당 날짜의 일정이 표시됩니다.<br>주황색 점은 일정이 있는 날짜입니다.</div>
+    </aside>
+  </div>
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  const STORAGE_KEY = "one-glance-personal-schedules-v1";
+  const $ = (id) => document.getElementById(id);
+  const today = new Date();
+  let selectedDate = dateKey(today);
+  let visibleMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  let schedules = loadSchedules();
+  let showSummary = false;
+  let showWholeMonth = false;
+
+  function dateKey(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  function parseDateKey(key) {
+    const [y, m, d] = key.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  function loadSchedules() {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (!stored) return [];
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter(item =>
+        item && typeof item.id === "string" &&
+        typeof item.date === "string" &&
+        typeof item.name === "string" &&
+        typeof item.time === "string" &&
+        typeof item.completed === "boolean"
+      );
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function saveSchedules() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(schedules));
+      return true;
+    } catch (error) {
+      setNotice("저장 공간에 접근할 수 없습니다. 브라우저의 로컬 저장소 설정을 확인해 주세요.");
+      return false;
+    }
+  }
+
+  function setNotice(message = "") {
+    $("notice").textContent = message;
+  }
+
+  function formatDate(key) {
+    const date = parseDateKey(key);
+    return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
+  }
+
+  function visibleSchedules() {
+    if (showWholeMonth) {
+      const prefix = `${visibleMonth.getFullYear()}-${String(visibleMonth.getMonth() + 1).padStart(2, "0")}-`;
+      return schedules.filter(item => item.date.startsWith(prefix))
+        .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+    }
+    return schedules.filter(item => item.date === selectedDate)
+      .sort((a, b) => a.time.localeCompare(b.time));
+  }
+
+  function renderList() {
+    const list = $("scheduleList");
+    const items = visibleSchedules();
+    list.replaceChildren();
+
+    $("selectedDateCaption").textContent = showWholeMonth
+      ? `${visibleMonth.getFullYear()}년 ${visibleMonth.getMonth() + 1}월 전체 일정`
+      : `${formatDate(selectedDate)} 일정`;
+
+    if (items.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "empty-state";
+      empty.textContent = showWholeMonth
+        ? "이번 달에 등록된 일정이 없습니다. ＋ 일정 추가 버튼으로 일정을 등록하세요."
+        : "등록된 일정이 없습니다. ＋ 일정 추가 버튼으로 일정을 등록하세요.";
+      list.appendChild(empty);
+    } else {
+      for (const item of items) {
+        const row = document.createElement("div");
+        row.className = `schedule-item${item.completed ? " completed" : ""}`;
+
+        const title = document.createElement("div");
+        title.className = "schedule-title";
+        title.textContent = item.name;
+
+        const time = document.createElement("div");
+        time.className = "schedule-time";
+        time.textContent = `${showWholeMonth ? `${item.date.slice(5).replace("-", "/")} · ` : ""}${item.time}`;
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "check-box";
+        checkbox.checked = item.completed;
+        checkbox.setAttribute("aria-label", `${item.name} 완료 여부`);
+        checkbox.addEventListener("change", () => {
+          const target = schedules.find(entry => entry.id === item.id);
+          if (!target) return;
+          target.completed = checkbox.checked;
+          if (saveSchedules()) {
+            setNotice("");
+            renderAll();
+          } else {
+            checkbox.checked = !checkbox.checked;
+            target.completed = checkbox.checked;
+          }
+        });
+
+        row.append(title, time, checkbox);
+        list.appendChild(row);
+      }
+    }
+
+    const summary = $("summary");
+    summary.classList.toggle("visible", showSummary);
+    $("summaryBtn").setAttribute("aria-pressed", String(showSummary));
+    $("summaryBtn").textContent = showSummary ? "현황 숨기기" : "현황 보기";
+
+    if (showSummary) {
+      const count = items.length;
+      const totalMinutes = items.reduce((sum, item) => {
+        if (!/^\d{2}:\d{2}$/.test(item.time)) return sum;
+        const [hours, minutes] = item.time.split(":").map(Number);
+        return sum + hours * 60 + minutes;
+      }, 0);
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      summary.replaceChildren();
+      const countText = document.createElement("span");
+      countText.innerHTML = `일정 개수 <strong>${count}개</strong>`;
+      const timeText = document.createElement("span");
+      timeText.innerHTML = `시간 합계 <strong>${hours}시간 ${minutes}분</strong>`;
+      summary.append(countText, timeText);
+    } else {
+      summary.replaceChildren();
+    }
+  }
+
+  function renderCalendar() {
+    const year = visibleMonth.getFullYear();
+    const month = visibleMonth.getMonth();
+    $("monthTitle").textContent = `${year}년 ${month + 1}월`;
+    const grid = $("calendarGrid");
+    grid.replaceChildren();
+
+    ["일", "월", "화", "수", "목", "금", "토"].forEach(day => {
+      const label = document.createElement("div");
+      label.className = "weekday";
+      label.textContent = day;
+      grid.appendChild(label);
+    });
+
+    const firstDay = new Date(year, month, 1);
+    const start = new Date(year, month, 1 - firstDay.getDay());
+    const todayKey = dateKey(today);
+
+    for (let i = 0; i < 42; i++) {
+      const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      const key = dateKey(date);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "day";
+      button.textContent = date.getDate();
+      if (date.getMonth() !== month) button.classList.add("other-month");
+      if (key === selectedDate) button.classList.add("selected");
+      if (key === todayKey) button.classList.add("today");
+      if (schedules.some(item => item.date === key)) button.classList.add("has-events");
+      button.setAttribute("aria-label", `${formatDate(key)} 선택`);
+      button.setAttribute("aria-pressed", String(key === selectedDate));
+      button.addEventListener("click", () => {
+        selectedDate = key;
+        visibleMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+        showWholeMonth = false;
+        setNotice("");
+        renderAll();
+      });
+      grid.appendChild(button);
+    }
+  }
+
+  function renderAll() {
+    renderCalendar();
+    renderList();
+  }
+
+  $("todayLabel").textContent = `오늘 ${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일`;
+  $("openFormBtn").addEventListener("click", () => {
+    const form = $("scheduleForm");
+    form.hidden = !form.hidden;
+    setNotice("");
+    if (!form.hidden) $("scheduleName").focus();
+  });
+
+  $("scheduleForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const name = $("scheduleName").value.trim();
+    const time = $("scheduleTime").value;
+
+    if (!name) {
+      setNotice("일정명을 입력해 주세요.");
+      $("scheduleName").focus();
+      return;
+    }
+    if (!time) {
+      setNotice("일정 시간을 선택해 주세요.");
+      $("scheduleTime").focus();
+      return;
+    }
+
+    const item = {
+      id: (typeof crypto !== "undefined" && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      date: selectedDate,
+      name,
+      time,
+      completed: false
+    };
+    schedules.push(item);
+    if (!saveSchedules()) {
+      schedules = schedules.filter(entry => entry.id !== item.id);
+      return;
+    }
+
+    $("scheduleName").value = "";
+    $("scheduleTime").value = "";
+    $("scheduleForm").hidden = true;
+    showWholeMonth = false;
+    setNotice("");
+    renderAll();
+  });
+
+  $("summaryBtn").addEventListener("click", () => {
+    showSummary = !showSummary;
+    renderList();
+  });
+
+  $("allMonthBtn").addEventListener("click", () => {
+    showWholeMonth = !showWholeMonth;
+    $("allMonthBtn").textContent = showWholeMonth ? "선택 날짜 보기" : "이번 달 전체";
+    setNotice("");
+    renderList();
+  });
+
+  $("prevMonth").addEventListener("click", () => {
+    visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() - 1, 1);
+    showWholeMonth = true;
+    $("allMonthBtn").textContent = "선택 날짜 보기";
+    renderAll();
+  });
+
+  $("nextMonth").addEventListener("click", () => {
+    visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 1);
+    showWholeMonth = true;
+    $("allMonthBtn").textContent = "선택 날짜 보기";
+    renderAll();
+  });
+
+  renderAll();
+})();
+</script>
+</body>
+</html>
